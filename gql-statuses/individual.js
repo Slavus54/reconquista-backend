@@ -1,0 +1,22 @@
+const INDIVIDUAL_CREATED = 'Individual is created'
+const INDIVIDUAL_FALL = 'Individual is not created'
+
+const INDIVIDUAL_QUOTE_CREATED = 'New quote is created'
+const INDIVIDUAL_QUOTE_UPDATED = 'Quote is updated'
+const INDIVIDUAL_QUOTE_DELETED = 'Quote is deleted'
+const INDIVIDUAL_QUOTE_FALL = 'List of quotes is not changed'
+
+const INDIVIDUAL_IMAGE_CREATED = 'New image is published'
+const INDIVIDUAL_IMAGE_LIKED = 'You like this image'
+const INDIVIDUAL_IMAGE_DELETED = 'Image is deleted'
+const INDIVIDUAL_IMAGE_FALL = 'Gallery of images is not changed'
+
+const INDIVIDUAL_ACHIEVEMENT_UPDATED = 'Achievement is updated'
+const INDIVIDUAL_ACHIEVEMENT_FALL = 'Achievement is not changed'
+
+module.exports = {
+    INDIVIDUAL_CREATED, INDIVIDUAL_FALL,
+    INDIVIDUAL_QUOTE_CREATED, INDIVIDUAL_QUOTE_UPDATED, INDIVIDUAL_QUOTE_DELETED, INDIVIDUAL_QUOTE_FALL,
+    INDIVIDUAL_IMAGE_CREATED, INDIVIDUAL_IMAGE_LIKED, INDIVIDUAL_IMAGE_DELETED, INDIVIDUAL_IMAGE_FALL,
+    INDIVIDUAL_ACHIEVEMENT_UPDATED, INDIVIDUAL_ACHIEVEMENT_FALL
+}
