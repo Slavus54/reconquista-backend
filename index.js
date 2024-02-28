@@ -12,6 +12,7 @@ const Individuals = require('./schemas/Individuals')
 const Raids = require('./schemas/Raids') 
 const Stories = require('./schemas/Stories') 
 const Laws = require('./schemas/Laws') 
+const Lands = require('./schemas/Lands') 
 
 // microservices
 
@@ -129,6 +130,37 @@ const typeDefs = gql`
         image: String!,
         timestamp: String!
     }
+    type Fact {
+        shortid: String!,
+        name: String!,
+        text: String!,
+        level: String!,
+        format: String!,
+        isTrue: Boolean!
+    }
+    type Location {
+        shortid: String!,
+        name: String!,
+        title: String!,
+        category: String!,
+        cords: Cord!,
+        image: String!,
+        likes: Float!
+    }
+    type Land {
+        id: ID!,
+        shortid: String!,
+        username: String!,
+        title: String!,
+        category: String!,
+        century: String!,
+        region: String!,
+        cords: Cord!,
+        timestamp: String!,
+        period: String!,
+        facts: [Fact]!,
+        locations: [Location]!
+    }
     type Law {
         id: ID!,
         shortid: String!,
@@ -206,6 +238,7 @@ const typeDefs = gql`
         getRaids: [Raid]!
         getStories: [Story]!
         getLaws: [Law]!
+        getLands: [Land]!
     }
     type Mutation {
         createProfile(username: String!, password: String!, telegram: String!, goal: String!, budget: Float!, region: String!, cords: ICord!, main_photo: String!) : UserCookie!
@@ -237,6 +270,11 @@ const typeDefs = gql`
         manageLawVersion(username: String!, id: String!, option: String!, text: String!, category: String!, coll_id: String!) : String!
         updateLawInfo(username: String!, id: String!, status: String!, rating: Float!) : String!
         makeLawIssue(username: String!, id: String!, title: String!, level: String!, image: String!, timestamp: String!) : String!
+        createLand(username: String!, id: String!, title: String!, category: String!, century: String!, region: String!, cords: ICord!, timestamp: String!, period: String!) : String!
+        getLand(shortid: String!) : Land!
+        makeLandFact(username: String!, id: String!, text: String!, level: String!, format: String!, isTrue: Boolean!) : String!
+        updateLandInfo(username: String!, id: String!, timestamp: String!, period: String!) : String!
+        manageLandLocation(username: String!, id: String!, option: String!, title: String!, category: String!, cords: ICord!, image: String!, coll_id: String!) : String!
     }
 `
 
@@ -266,6 +304,11 @@ const resolvers = {
             const laws = await Laws.find()
 
             return laws
+        },
+        getLands: async () => {
+            const lands = await Lands.find()
+
+            return lands
         }
     },
     Mutation: {
@@ -1043,6 +1086,141 @@ const resolvers = {
             }
 
             return LAW_ISSUE_FALL
+        },
+        createLand: async (_, {username, id, title, category, century, region, cords, timestamp, period}) => {
+            const profile = await Profiles.findOne({username, account_id: id})
+            const land = await Lands.findOne({username, title, category, century, region, cords})
+
+            if (profile && !land) {
+                if (profile.account_components.filter(el => el.path === 'land').find(el => el.title === title) === undefined) {
+
+                    let shortid = get_id()
+
+                    profile.account_components = [...profile.account_components, {
+                        shortid,
+                        title,
+                        path: 'land'
+                    }]
+
+                    const newLand = new Lands({
+                        shortid,
+                        username: profile.username,
+                        title,
+                        category,
+                        century,
+                        region,
+                        cords,
+                        timestamp,
+                        period,
+                        facts: [],
+                        locations: []
+                    })
+
+                    await Profiles.updateOne({username, account_id: id}, {$set: profile})
+                    await newLand.save()
+             
+                    return LAND_CREATED
+                }
+            }
+
+            return LAND_FALL
+        },
+        getLand: async (_, {shortid}) => {
+            const land = await Lands.findOne({shortid})
+
+            return land
+        },
+        makeLandFact: async (_, {username, id, text, level, format, isTrue}) => {
+            const profile = await Profiles.findOne({username})
+            const land = await Lands.findOne({shortid: id})
+        
+            if (profile && land) {
+
+                let shortid = get_id()
+
+                land.facts = [...land.facts, {
+                    shortid,
+                    name: profile.username,
+                    text,
+                    level,
+                    format,
+                    isTrue
+                }]
+
+                land.facts = slicer(land.facts, limit)
+
+                await Lands.updateOne({shortid: id}, {$set: land})
+            
+                return LAND_FACT_CREATED
+            }
+
+            return LAND_FACT_FALL
+        },
+        updateLandInfo: async (_, {username, id, timestamp, period}) => {
+            const profile = await Profiles.findOne({username})
+            const land = await Lands.findOne({shortid: id})
+        
+            if (profile && land) {
+
+                land.timestamp = timestamp
+                land.period = period
+
+                await Lands.updateOne({shortid: id}, {$set: land})
+
+                return LAND_INFO_UPDATED
+            }
+
+            return LAND_INFO_FALL
+        },
+        manageLandLocation: async (_, {username, id, option, title, category, cords, image, coll_id}) => {
+            const profile = await Profiles.findOne({username})
+            const land = await Lands.findOne({shortid: id})
+        
+            if (profile && land) {
+                
+                let feedback = ''
+
+                if (option === 'create') {
+
+                    let shortid = get_id()
+
+                    land.locations = [...land.locations, {
+                        shortid,
+                        name: profile.username,
+                        title,
+                        category,
+                        cords,
+                        image,
+                        likes: 0
+                    }]
+
+                    land.locations = slicer(land.locations, limit)
+
+                    feedback = LAND_LOCATION_CREATED
+
+                } else if (option === 'like') {
+
+                    land.locations.map(el => {
+                        if (el.shortid === coll_id) {
+                            el.likes += 1
+                        }
+                    })
+
+                    feedback = LAND_LOCATION_LIKED
+
+                } else {
+
+                    land.locations = land.locations.filter(el => el.shortid !== coll_id)
+
+                    feedback = LAND_LOCATION_DELETED
+                }
+
+                await Lands.updateOne({shortid: id}, {$set: land})
+
+                return feedback
+            }
+
+            return LAND_LOCATION_FALL
         }
 
 
@@ -1095,3 +1273,10 @@ const {
     LAW_ISSUE_CREATED, LAW_ISSUE_FALL,
     LAW_INFO_UPDATED, LAW_INFO_FALL
 } = require('./gql-statuses/law')
+
+const {
+    LAND_CREATED, LAND_FALL,
+    LAND_FACT_CREATED, LAND_FACT_FALL,
+    LAND_LOCATION_CREATED, LAND_LOCATION_LIKED, LAND_LOCATION_DELETED, LAND_LOCATION_FALL,
+    LAND_INFO_UPDATED, LAND_INFO_FALL
+} = require('./gql-statuses/land')
