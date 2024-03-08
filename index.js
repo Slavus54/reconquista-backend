@@ -13,6 +13,7 @@ const Raids = require('./schemas/Raids')
 const Stories = require('./schemas/Stories') 
 const Laws = require('./schemas/Laws') 
 const Lands = require('./schemas/Lands') 
+const Recipes = require('./schemas/Recipes') 
 
 // microservices
 
@@ -147,6 +148,49 @@ const typeDefs = gql`
         image: String!,
         likes: Float!
     }
+    type IngredientType {
+        id: String!,
+        label: String!,
+        measure: String!,
+        volume: Float!
+    }
+    input IngredientInp {
+        id: String!,
+        label: String!,
+        measure: String!,
+        volume: Float!
+    }
+    type Step {
+        shortid: String!,
+        name: String!,
+        text: String!,
+        ingredient: String!,
+        stage: String!,
+        duration: Float!
+    }
+    type Cooking {
+        shortid: String!,
+        name: String!,
+        title: String!,
+        receiver: String!,
+        image: String!,
+        dateUp: String!,
+        likes: Float!
+    }
+    type Recipe {
+        id: ID!,
+        shortid: String!,
+        username: String!,
+        title: String!,
+        cuisine: String!,
+        category: String!,
+        level: String!,
+        ingredients: [IngredientType]!,
+        url: String!,
+        calories: Float!,
+        steps: [Step]!,
+        cookings: [Cooking]!
+    }
     type Land {
         id: ID!,
         shortid: String!,
@@ -239,6 +283,7 @@ const typeDefs = gql`
         getStories: [Story]!
         getLaws: [Law]!
         getLands: [Land]!
+        getRecipes: [Recipe]!
     }
     type Mutation {
         createProfile(username: String!, password: String!, telegram: String!, goal: String!, budget: Float!, region: String!, cords: ICord!, main_photo: String!) : UserCookie!
@@ -275,6 +320,11 @@ const typeDefs = gql`
         makeLandFact(username: String!, id: String!, text: String!, level: String!, format: String!, isTrue: Boolean!) : String!
         updateLandInfo(username: String!, id: String!, timestamp: String!, period: String!) : String!
         manageLandLocation(username: String!, id: String!, option: String!, title: String!, category: String!, cords: ICord!, image: String!, coll_id: String!) : String!
+        createRecipe(username: String!, id: String!, title: String!, cuisine: String!, category: String!, level: String!, ingredients: [IngredientInp]!, url: String!, calories: Float!) : String!
+        getRecipe(shortid: String!) : Recipe!
+        makeRecipeStep(username: String!, id: String!, text: String!, ingredient: String!, stage: String!, duration: Float!) : String!
+        updateRecipeInfo(username: String!, id: String!, url: String!, calories: Float!) : String!
+        manageRecipeCooking(username: String!, id: String!, option: String!, title: String!, receiver: String!, image: String!, dateUp: String!, coll_id: String!) : String!
     }
 `
 
@@ -309,6 +359,11 @@ const resolvers = {
             const lands = await Lands.find()
 
             return lands
+        },
+        getRecipes: async () => {
+            const recipes = await Recipes.find()
+
+            return recipes
         }
     },
     Mutation: {
@@ -1221,6 +1276,141 @@ const resolvers = {
             }
 
             return LAND_LOCATION_FALL
+        },
+        createRecipe: async (_, {username, id, title, cuisine, category, level, ingredients, url, calories}) => {
+            const profile = await Profiles.findOne({username, account_id: id})
+            const recipe = await Recipes.findOne({title, cuisine, category, level}) 
+        
+            if (profile && !recipe) {
+                if (profile.account_components.filter(el => el.path === RECIPE_PATHNAME).find(el => el.title === title) === undefined) {
+
+                    let shortid = get_id()
+
+                    profile.account_components = [...profile.account_components, {
+                        shortid,
+                        title,
+                        path: RECIPE_PATHNAME
+                    }]
+
+                    const newRecipe = new Recipes({
+                        shortid,
+                        username: profile.username,
+                        title,
+                        cuisine,
+                        category,
+                        level,
+                        ingredients,
+                        url,
+                        calories,
+                        steps: [],
+                        cookings: []
+                    })
+
+                    await Profiles.updateOne({username, account_id: id}, {$set: profile})
+                    await newRecipe.save()
+
+                    return RECIPE_CREATED
+                }
+            }
+
+            return RECIPE_FALL
+        },
+        getRecipe: async (_, {shortid}) => {
+            const recipe = await Recipes.findOne({shortid})
+
+            return recipe
+        },
+        makeRecipeStep: async (_, {username, id, text, ingredient, stage, duration}) => {
+            const profile = await Profiles.findOne({username})
+            const recipe = await Recipes.findOne({shortid: id})
+        
+            if (profile && recipe) {
+
+                let shortid = get_id()
+
+                recipe.steps = [...recipe.steps, {
+                    shortid,
+                    name: profile.username,
+                    text,
+                    ingredient,
+                    stage,
+                    duration
+                }]
+
+                recipe.steps = slicer(recipe.steps, limit)
+
+                await Recipes.updateOne({shortid: id}, {$set: recipe})
+
+                return RECIPE_STEP_CREATED
+            }
+
+            return RECIPE_STEP_FALL
+        },
+        updateRecipeInfo: async (_, {username, id, url, calories}) => {
+            const profile = await Profiles.findOne({username})
+            const recipe = await Recipes.findOne({shortid: id})
+        
+            if (profile && recipe) {
+                
+                recipe.url = url
+                recipe.calories = calories
+
+                await Recipes.updateOne({shortid: id}, {$set: recipe})
+
+                return RECIPE_INFO_UPDATED
+            }
+
+            return RECIPE_INFO_FALL
+        },
+        manageRecipeCooking: async (_, {username, id, option, title, receiver, image, dateUp, coll_id}) => {
+            const profile = await Profiles.findOne({username})
+            const recipe = await Recipes.findOne({shortid: id})
+        
+            if (profile && recipe) {
+                
+                let feedback = ''
+                
+                if (option === 'create') {
+
+                    let shortid = get_id()
+
+                    recipe.cookings = [...recipe.cookings, {
+                        shortid,
+                        name: profile.username,
+                        title,
+                        receiver,
+                        image,
+                        dateUp,
+                        likes: 0
+                    }]
+
+                    recipe.cookings = slicer(recipe.cookings, limit)
+
+                    feedback = RECIPE_COOKING_CREATED
+
+                } else if (option === 'like') {
+
+                    recipe.cookings.map(el => {
+                        if (el.shortid === coll_id) {
+                            el.likes += 1
+                        }
+                    })
+
+                    feedback = RECIPE_COOKING_LIKED
+
+                } else {
+
+                    recipe.cookings = recipe.cookings.filter(el => el.shortid !== coll_id)
+
+                    feedback = RECIPE_COOKING_DELETED
+                }
+
+                await Recipes.updateOne({shortid: id}, {$set: recipe})
+
+                return feedback
+            }
+
+            return RECIPE_COOKING_FALL
         }
 
 
@@ -1280,3 +1470,11 @@ const {
     LAND_LOCATION_CREATED, LAND_LOCATION_LIKED, LAND_LOCATION_DELETED, LAND_LOCATION_FALL,
     LAND_INFO_UPDATED, LAND_INFO_FALL
 } = require('./gql-statuses/land')
+
+const {
+    RECIPE_CREATED, RECIPE_FALL,
+    RECIPE_STEP_CREATED, RECIPE_STEP_FALL,
+    RECIPE_INFO_UPDATED, RECIPE_INFO_FALL,
+    RECIPE_COOKING_CREATED, RECIPE_COOKING_LIKED, RECIPE_COOKING_DELETED, RECIPE_COOKING_FALL,
+    RECIPE_PATHNAME
+} = require('./gql-statuses/recipe')
